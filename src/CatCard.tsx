@@ -1,16 +1,9 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { StyleSheet, Image, Text, Animated } from 'react-native';
-import {
-  PanGestureHandler,
-  PanGestureHandlerStateChangeEvent,
-  State,
-} from 'react-native-gesture-handler';
+import { CardGestureHandler } from './CardGestureHandler';
 
 import { Cat } from './Cats';
 import { useAnimatedValue, useAnimatedXY } from './hooks';
-
-const VELOCITY_TRESHOLD = 1500;
-const X_TRESHOLD = 100;
 
 const catCardStyles = StyleSheet.create({
   container: {
@@ -55,80 +48,10 @@ const CatCard = ({
   isTop: boolean;
   onDismiss?: () => void;
 }) => {
-  const gesturePosition = useAnimatedXY({ x: 0, y: 0 });
+  const position = useAnimatedXY({ x: 0, y: 0 });
   const scaling = useAnimatedValue(isTop ? 1 : 0.9);
 
-  useEffect(() => {
-    function scaleCardToFullSize() {
-      Animated.spring(scaling, {
-        toValue: 1,
-        useNativeDriver: true,
-        bounciness: 16,
-        speed: 12,
-      }).start();
-    }
-
-    if (isTop) {
-      scaleCardToFullSize();
-    }
-  }, [scaling, isTop]);
-
-  const handlePanEvent = Animated.event(
-    [
-      {
-        nativeEvent: {
-          translationX: gesturePosition.x,
-          translationY: gesturePosition.y,
-        },
-      },
-    ],
-    { useNativeDriver: true },
-  );
-
-  const shouldRemoveCard = (velocityX: number, translationX: number) => {
-    const hasEnoughVelocity =
-      velocityX < -VELOCITY_TRESHOLD || velocityX > VELOCITY_TRESHOLD;
-    const hasMovedEnoughInXAxis =
-      translationX < -X_TRESHOLD || translationX > X_TRESHOLD;
-    return hasEnoughVelocity && hasMovedEnoughInXAxis;
-  };
-
-  const removeCard = (velocityX: number, velocityY: number) => {
-    Animated.decay(gesturePosition, {
-      velocity: { x: velocityX, y: velocityY },
-      deceleration: 0.9,
-      useNativeDriver: true,
-    }).start(() => {
-      if (onDismiss) {
-        onDismiss();
-      }
-    });
-  };
-
-  const putCardBackIntoPlace = () => {
-    Animated.spring(gesturePosition, {
-      toValue: { x: 0, y: 0 },
-      useNativeDriver: true,
-      bounciness: 10,
-    }).start();
-  };
-
-  const handlePanEventChange = (event: PanGestureHandlerStateChangeEvent) => {
-    const {
-      nativeEvent: { state, velocityX, translationX, velocityY },
-    } = event;
-
-    const gestureHasEnded = state === State.END;
-    if (gestureHasEnded) {
-      if (shouldRemoveCard(velocityX, translationX)) {
-        removeCard(velocityX, velocityY);
-      } else {
-        putCardBackIntoPlace();
-      }
-    }
-  };
-
-  const rotate = gesturePosition.x.interpolate({
+  const rotate = position.x.interpolate({
     inputRange: [-200, 0, 200],
     outputRange: ['-30deg', '0deg', '30deg'],
     extrapolate: 'clamp',
@@ -136,24 +59,29 @@ const CatCard = ({
 
   const transformations = {
     transform: [
-      { translateX: gesturePosition.x },
-      { translateY: gesturePosition.y },
+      { translateX: position.x },
+      { translateY: position.y },
       { rotate },
       { scale: scaling },
     ],
   };
 
+  const contentView = (
+    <Animated.View style={[transformations, catCardStyles.container]}>
+      <Image style={catCardStyles.image} source={cat.image} />
+      <Text style={catCardStyles.name}>{cat.name}</Text>
+      <Text style={catCardStyles.description}>{cat.description}</Text>
+    </Animated.View>
+  );
+
   return (
-    <PanGestureHandler
-      minDist={0}
-      onGestureEvent={handlePanEvent}
-      onHandlerStateChange={handlePanEventChange}>
-      <Animated.View style={[transformations, catCardStyles.container]}>
-        <Image style={catCardStyles.image} source={cat.image} />
-        <Text style={catCardStyles.name}>{cat.name}</Text>
-        <Text style={catCardStyles.description}>{cat.description}</Text>
-      </Animated.View>
-    </PanGestureHandler>
+    <CardGestureHandler
+      onRemove={onDismiss ? onDismiss : () => {}}
+      fullSize={isTop}
+      position={position}
+      scaling={scaling}>
+      {contentView}
+    </CardGestureHandler>
   );
 };
 
